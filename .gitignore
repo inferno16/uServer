@@ -1,0 +1,13 @@
+# Ignore everything
+*
+
+# Except these files...
+!.gitignore
+!README.md
+!*.cpp
+!*.h
+!*.cc
+!*.hpp
+
+# Apply to subfolders
+!*/
