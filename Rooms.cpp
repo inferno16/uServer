@@ -11,7 +11,7 @@ RoomsManager::RoomsManager(uWS::Hub *h)
 RoomsManager::RoomsManager(uWS::Hub * h, message_handler mh, connection_handler ch, disconnection_handler dh)
 	:RoomsManager(h)
 {
-	this->AttachBasicHandlers(rooms.at("default"), mh, ch, dh);
+	this->AttachBasicHandlers(rooms.at("default"), mh, NULL, ch, dh);
 }
 
 
@@ -44,14 +44,14 @@ RoomStatus RoomsManager::CheckRoomStatus(std::string id) {
 	}
 }
 
-Room* RoomsManager::CreateNewRoom(std::string id, uWS::WebSocket<uWS::SERVER> *ws, message_handler mh, connection_handler ch, disconnection_handler dh)
+Room* RoomsManager::CreateNewRoom(std::string id, uWS::WebSocket<uWS::SERVER> *ws, message_handler mh, transfer_handler th, disconnection_handler dh)
 {
-	if (rooms.find(id) == rooms.end())
+	if (rooms.find(id) != rooms.end())
 		return nullptr;
 	Room *r = nullptr;
 	r = hub->createGroup<uWS::SERVER>();
 	ws->transfer(r);
-	this->AttachBasicHandlers(r, mh, ch, dh);
+	this->AttachBasicHandlers(r, mh, th, NULL, dh);
 	rooms.insert(std::make_pair(id, r));
 	return r;
 }
@@ -64,9 +64,10 @@ bool RoomsManager::JoinRoom(std::string roomID, uWS::WebSocket<uWS::SERVER>* use
 	return true;
 }
 
-void RoomsManager::AttachBasicHandlers(Room* room, message_handler mh, connection_handler ch, disconnection_handler dh)
+void RoomsManager::AttachBasicHandlers(Room* room, message_handler mh, transfer_handler th, connection_handler ch, disconnection_handler dh)
 {
 	room->onMessage(mh);
+	room->onTransfer(th);
 	room->onConnection(ch);
 	room->onDisconnection(dh);
 }
