@@ -2,6 +2,9 @@
 #include <uWS.h>
 #include <string>
 #include <map>
+#include <regex>
+#include <vector>
+#include "Database.h"
 
 typedef uWS::Group<uWS::SERVER> Room;
 typedef std::map<std::string, Room*> rooms_map;
@@ -24,7 +27,9 @@ public:
 	bool JoinRoom(std::string roomID, uWS::WebSocket<uWS::SERVER> *user);
 private:
 	void AttachBasicHandlers(Room* room, message_handler mh, transfer_handler th, connection_handler ch, disconnection_handler dh);
+	std::vector<std::string> GetInfoFromHeader(const std::string &header_val);
 private:
 	rooms_map rooms;
 	uWS::Hub *hub;
+	Database *db;
 };

@@ -6,6 +6,7 @@ RoomsManager::RoomsManager(uWS::Hub *h)
 	:hub(h)
 {
 	rooms.insert(std::make_pair("default", &h->getDefaultGroup<uWS::SERVER>()));
+	db = new Database("127.0.0.1", 3306, "root", "", "letswatch");
 }
 
 RoomsManager::RoomsManager(uWS::Hub * h, message_handler mh, connection_handler ch, disconnection_handler dh)
@@ -17,18 +18,17 @@ RoomsManager::RoomsManager(uWS::Hub * h, message_handler mh, connection_handler 
 
 RoomsManager::~RoomsManager()
 {
+	delete db;
 }
 
 std::string RoomsManager::GetRoomID(std::string header_val) {
-	size_t i = 0;
-
-	while (header_val[i] != '\0') { // ToDo: This doesn't work this way. PLS FIX
-		if (header_val[i] == ' ' && i > 0) {
-			return std::string(&header_val[1], i - 1);
-		}
-		i++;
+	std::string id = "";
+	std::smatch mr;
+	std::regex rxp("^\\/([A-Za-z0-9_\\-]+)\\s");
+	if (std::regex_search(header_val, mr, rxp)) {
+		id = mr[1];
 	}
-	return "";
+	return id;
 }
 
 RoomStatus RoomsManager::CheckRoomStatus(std::string id) {
@@ -36,8 +36,7 @@ RoomStatus RoomsManager::CheckRoomStatus(std::string id) {
 		return RS_ACTIVE;
 	}
 	else {
-		if (1) {
-			//ToDo: fetch info from the HTTP server
+		if (db->RoomExists(id)) {
 			return RS_PENDING;
 		}
 		return RS_INVALID;
@@ -70,4 +69,20 @@ void RoomsManager::AttachBasicHandlers(Room* room, message_handler mh, transfer_
 	room->onTransfer(th);
 	room->onConnection(ch);
 	room->onDisconnection(dh);
+}
+
+std::vector<std::string> RoomsManager::GetInfoFromHeader(const std::string & header_val)
+{
+	std::vector<std::string> v;
+	std::smatch mr;
+	std::regex rxp("^\\/(.+)\\/([A-Za-z0-9._%\\-]+)\\s"); // /^\/(.+)\/([A-Za-z0-9._%\-]+)\s/ -> "/(RoomID)/(Username) "
+	if (std::regex_search(header_val, mr, rxp)) {
+		if (mr.size() != 3) {
+			throw std::exception("Data parsing error", 447453);
+		}
+		for (size_t i = 0; i < 2; i++) {
+			v.push_back(mr[i + 1].str());
+		}
+	}
+	return v;
 }
