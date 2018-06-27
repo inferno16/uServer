@@ -21,7 +21,7 @@ RoomsManager::~RoomsManager()
 	delete db;
 }
 
-std::string RoomsManager::GetRoomID(std::string header_val) {
+std::string RoomsManager::GetRoomID(const std::string &header_val) {
 	std::string id = "";
 	std::smatch mr;
 	std::regex rxp("^\\/([A-Za-z0-9_\\-]+)\\s");
@@ -31,7 +31,31 @@ std::string RoomsManager::GetRoomID(std::string header_val) {
 	return id;
 }
 
-RoomStatus RoomsManager::CheckRoomStatus(std::string id) {
+uWS::WebSocket<uWS::SERVER>* RoomsManager::GetRoomOwner(Room * room)
+{
+	if(owners.find(room) == owners.end())
+		return nullptr;
+	return owners.at(room);
+}
+
+void RoomsManager::SetRoomOwner(Room * room, uWS::WebSocket<uWS::SERVER>* ws)
+{
+	if (owners.find(room) == owners.end())
+		return;
+	owners.at(room) = ws;
+}
+
+bool RoomsManager::IsRoomMember(Room * room, uWS::WebSocket<uWS::SERVER>* ws)
+{
+	return (Room::from(ws) == room);
+}
+
+std::string RoomsManager::GetUsername(const std::string &address)
+{
+	return db->GetUsername(address);
+}
+
+RoomStatus RoomsManager::CheckRoomStatus(const std::string &id) {
 	if (rooms.find(id) != rooms.end()) {
 		return RS_ACTIVE;
 	}
@@ -43,24 +67,27 @@ RoomStatus RoomsManager::CheckRoomStatus(std::string id) {
 	}
 }
 
-Room* RoomsManager::CreateNewRoom(std::string id, uWS::WebSocket<uWS::SERVER> *ws, message_handler mh, transfer_handler th, disconnection_handler dh)
+Room* RoomsManager::CreateNewRoom(const std::string &id, uWS::WebSocket<uWS::SERVER> *ws, message_handler mh, transfer_handler th, disconnection_handler dh)
 {
 	if (rooms.find(id) != rooms.end())
 		return nullptr;
 	Room *r = nullptr;
 	r = hub->createGroup<uWS::SERVER>();
-	ws->transfer(r);
 	this->AttachBasicHandlers(r, mh, th, NULL, dh);
+	ws->transfer(r);
 	rooms.insert(std::make_pair(id, r));
+	owners.insert(std::make_pair(r, ws));
 	return r;
 }
 
-bool RoomsManager::JoinRoom(std::string roomID, uWS::WebSocket<uWS::SERVER>* user)
+Room* RoomsManager::JoinRoom(const std::string &roomID, uWS::WebSocket<uWS::SERVER>* user)
 {
-	if (rooms.find(roomID) == rooms.end())
-		return false;
-	user->transfer(rooms.at(roomID));
-	return true;
+	rooms_map::iterator it = rooms.find(roomID);
+	if (it != rooms.end()) {
+		user->transfer(it->second);
+		return it->second;
+	}
+	return nullptr;
 }
 
 void RoomsManager::AttachBasicHandlers(Room* room, message_handler mh, transfer_handler th, connection_handler ch, disconnection_handler dh)

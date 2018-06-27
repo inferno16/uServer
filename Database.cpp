@@ -35,7 +35,7 @@ Database::~Database()
 	}
 }
 
-bool Database::RoomExists(std::string roomID)
+bool Database::RoomExists(const std::string &roomID)
 {
 	bool exists = false;
 	sql::Connection *conn = nullptr;
@@ -58,16 +58,47 @@ bool Database::RoomExists(std::string roomID)
 	return exists;
 }
 
-void Database::__call_wrapper(void (Database::*func)(sql::Connection*))
+std::string Database::GetUsername(const std::string &address)
+{
+	std::string username = "";
+	int id = -1;
+	sql::Connection *conn = nullptr;
+	sql::PreparedStatement *pstmt = nullptr;
+	sql::ResultSet *rs = nullptr;
+	try
+	{
+		if (CreateConnection(&conn)) {
+			pstmt = conn->prepareStatement("SELECT * FROM temp_users WHERE identifier=INET_ATON(?) LIMIT 1");
+			pstmt->setString(1, address);
+			rs = pstmt->executeQuery();
+			if (rs->rowsCount() == 1) {
+				rs->next();
+				username = rs->getString("username");
+				id = rs->getInt("id");
+			}
+		}
+	}
+	catch (sql::SQLException e)
+	{
+		std::cerr << e.what() << std::endl;
+	}
+	CleanUp(&conn, &rs, &pstmt);
+	if(id != -1)
+		__call_wrapper(&Database::DeleteFromTempUsers, (unsigned)id); // Async call for delete
+	return username;
+}
+
+template<typename T>
+void Database::__call_wrapper(void(Database::* func)(sql::Connection *, T), T param)
 {
 	this->__new_thread_started();
-	std::thread t([this, func]() {
+	std::thread t([this, func, param]() {
 		_driver->threadInit();
 		sql::Connection *conn = nullptr;
 
 		try {
 			if (CreateConnection(&conn)) {
-				(this->*func)(conn); // Call the function;
+				(this->*func)(conn, param); // Call the function;
 			}
 		} 
 		catch (sql::SQLException e) {
@@ -143,4 +174,12 @@ bool Database::CreateConnection(sql::Connection ** conn)
 	*conn = _driver->connect(_conn_str, _user, _pass);
 	(*conn)->setSchema(_schema);
 	return true;
+}
+
+void Database::DeleteFromTempUsers(sql::Connection *conn, unsigned id)
+{
+	sql::PreparedStatement *pstmt = conn->prepareStatement("DELETE FROM temp_users WHERE id=?");
+	pstmt->setUInt(1, id);
+	pstmt->execute();
+	CleanUp(&pstmt);
 }

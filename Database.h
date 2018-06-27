@@ -20,11 +20,13 @@ class Database
 public:
 	Database(db_strc &host, const unsigned &port, db_strc &user, db_strc &pass, db_strc &schema);
 	~Database();
-	bool RoomExists(std::string roomID);
+	bool RoomExists(const std::string &roomID);
+	std::string GetUsername(const std::string &address);
 	// Private functions
 private:
 	// Synchronization functions
-	void __call_wrapper(void (Database::* func)(sql::Connection*)); // This SHOULD be used to make async database calls
+	template <typename T>
+	void __call_wrapper(void (Database::* func)(sql::Connection*, T), T param); // This SHOULD be used to make async database calls
 	void __new_thread_started();
 	void __new_thread_finished();
 	bool __all_threads_finished();
@@ -36,6 +38,7 @@ private:
 	bool TestConnection();
 	bool CreateConnection(sql::Connection** conn, sql::Statement** stmt);
 	bool CreateConnection(sql::Connection** conn);
+	void DeleteFromTempUsers(sql::Connection* conn, unsigned id);
 
 	// Private variables
 private:
